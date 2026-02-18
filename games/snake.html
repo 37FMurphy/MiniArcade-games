@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snake — MiniArcade</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body class="game-page">
+
+<nav class="navbar">
+  <a href="../index.html" class="nav-logo">
+    <div class="logo-icon">🕹️</div>
+    Mini<span class="dim">Arcade</span>
+  </a>
+</nav>
+
+<div class="game-header">
+  <div class="game-header-left">
+    <a href="../index.html" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Games
+    </a>
+    <div class="game-title-badge">
+      <h2>🐍 Snake</h2>
+      <span class="live-badge">LIVE</span>
+    </div>
+  </div>
+  <div class="game-stats-bar">
+    <div class="stat-box">
+      <span class="label">Score</span>
+      <span class="value" id="scoreDisplay">0</span>
+    </div>
+    <div class="stat-box">
+      <span class="label">Best</span>
+      <span class="value" id="bestDisplay">0</span>
+    </div>
+    <div class="stat-box">
+      <span class="label">Level</span>
+      <span class="value" id="levelDisplay">1</span>
+    </div>
+  </div>
+</div>
+
+<div class="game-arena">
+  <div class="game-canvas-wrap" style="--shadow-glow:0 0 40px rgba(16,185,129,0.3)">
+    <canvas id="gameCanvas" width="420" height="420"></canvas>
+    <div class="game-overlay" id="overlay">
+      <div class="overlay-title" id="overlayTitle">🐍 Snake</div>
+      <div class="overlay-sub" id="overlaySub">Eat apples, grow longer, don't crash.</div>
+      <div class="overlay-score" id="overlayScore" style="display:none"></div>
+      <button class="btn btn-primary" id="startBtn" onclick="startGame()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+        Start Game
+      </button>
+    </div>
+  </div>
+
+  <div class="game-sidebar">
+    <div class="sidebar-panel">
+      <h4>Controls</h4>
+      <ul class="control-list">
+        <li>Move <span><span class="key-chip">↑</span><span class="key-chip">↓</span><span class="key-chip">←</span><span class="key-chip">→</span></span></li>
+        <li>Pause <span><span class="key-chip">P</span></span></li>
+        <li>Restart <span><span class="key-chip">R</span></span></li>
+      </ul>
+    </div>
+    <div class="sidebar-panel">
+      <h4>Scoring</h4>
+      <ul class="control-list">
+        <li>Apple <span style="color:var(--accent-green)">+10</span></li>
+        <li>Level up <span style="color:var(--accent-secondary)">every 5</span></li>
+        <li>Speed <span style="color:var(--accent-pink)">↑ per level</span></li>
+      </ul>
+    </div>
+    <div class="sidebar-panel" style="background:rgba(16,185,129,0.06);border-color:rgba(16,185,129,0.2)">
+      <h4 style="color:#10b981">Tip</h4>
+      <p style="font-size:0.78rem;color:var(--text-secondary)">Golden apples appear at level 3 — worth triple points!</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+
+const CELL  = 21;
+const COLS  = Math.floor(canvas.width  / CELL);
+const ROWS  = Math.floor(canvas.height / CELL);
+
+// Colors
+const C = {
+  bg:       '#0d1f17',
+  grid:     'rgba(16,185,129,0.04)',
+  snakeHead:'#10b981',
+  snakeBody:'#059669',
+  snakeTail:'#047857',
+  apple:    '#f87171',
+  golden:   '#facc15',
+  glow:     'rgba(16,185,129,0.6)',
+};
+
+let snake, dir, nextDir, apple, goldenApple, score, best, level, loop, running, paused;
+
+function init() {
+  snake     = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+  dir       = {x:1,y:0};
+  nextDir   = {x:1,y:0};
+  apple     = spawnFood(false);
+  goldenApple = null;
+  score     = 0;
+  level     = 1;
+  running   = false;
+  paused    = false;
+  best      = parseInt(localStorage.getItem('snake_best')||'0');
+  updateHUD();
+}
+
+function spawnFood(golden) {
+  let pos;
+  do {
+    pos = {x: Math.floor(Math.random()*COLS), y: Math.floor(Math.random()*ROWS)};
+  } while (snake.some(s => s.x===pos.x && s.y===pos.y));
+  pos.golden = golden;
+  return pos;
+}
+
+function startGame() {
+  hideOverlay();
+  init();
+  running = true;
+  clearInterval(loop);
+  tick();
+}
+
+function tick() {
+  if (!running || paused) return;
+  update();
+  draw();
+  const delay = Math.max(60, 160 - (level-1)*15);
+  loop = setTimeout(tick, delay);
+}
+
+function update() {
+  dir = {...nextDir};
+  const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+
+  // Wall collision
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) { return gameOver(); }
+  // Self collision
+  if (snake.some(s => s.x===head.x && s.y===head.y)) { return gameOver(); }
+
+  snake.unshift(head);
+
+  let ate = false;
+  if (head.x === apple.x && head.y === apple.y) {
+    score += 10 * level;
+    ate = true;
+    apple = spawnFood(false);
+    if (score % 50 === 0 && !goldenApple) goldenApple = spawnFood(true);
+    if (Math.floor(score/50) >= level) { level++; }
+  } else if (goldenApple && head.x === goldenApple.x && head.y === goldenApple.y) {
+    score += 30 * level;
+    ate = true;
+    goldenApple = null;
+  }
+
+  if (!ate) snake.pop();
+
+  if (score > best) { best = score; localStorage.setItem('snake_best', best); }
+  updateHUD();
+}
+
+function draw() {
+  // Background
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid
+  ctx.strokeStyle = C.grid;
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(canvas.width,y*CELL); ctx.stroke();
+  }
+
+  // Golden apple
+  if (goldenApple) {
+    const gx = goldenApple.x * CELL + CELL/2;
+    const gy = goldenApple.y * CELL + CELL/2;
+    ctx.shadowColor = '#facc15';
+    ctx.shadowBlur  = 16;
+    ctx.fillStyle = C.golden;
+    ctx.beginPath();
+    ctx.arc(gx, gy, CELL/2-2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // Apple
+  {
+    const ax = apple.x * CELL + CELL/2;
+    const ay = apple.y * CELL + CELL/2;
+    ctx.shadowColor = '#f87171';
+    ctx.shadowBlur  = 12;
+    ctx.fillStyle = C.apple;
+    ctx.beginPath();
+    ctx.arc(ax, ay, CELL/2-2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // Snake
+  snake.forEach((seg, i) => {
+    const x = seg.x * CELL + 2;
+    const y = seg.y * CELL + 2;
+    const s = CELL - 4;
+    const r = i === 0 ? 7 : 4;
+
+    if (i === 0) {
+      ctx.shadowColor = C.glow;
+      ctx.shadowBlur  = 14;
+    }
+
+    const t = i / snake.length;
+    const rCh = Math.round(16 + (5-16)*t);
+    const gCh = Math.round(185 + (150-185)*t);
+    const bCh = Math.round(129 + (120-129)*t);
+    ctx.fillStyle = `rgb(${rCh},${gCh},${bCh})`;
+
+    roundRect(ctx, x, y, s, s, r);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Eyes on head
+    if (i === 0) {
+      ctx.fillStyle = '#fff';
+      const [ex1,ey1,ex2,ey2] = eyePos(dir, x, y, s);
+      ctx.beginPath(); ctx.arc(ex1,ey1,2,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ex2,ey2,2,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath(); ctx.arc(ex1+dir.x,ey1+dir.y,1,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ex2+dir.x,ey2+dir.y,1,0,Math.PI*2); ctx.fill();
+    }
+  });
+}
+
+function eyePos(d, x, y, s) {
+  const cx = x + s/2, cy = y + s/2;
+  const ox = d.x !== 0 ? d.x * s*0.25 : s*0.22;
+  const oy = d.y !== 0 ? d.y * s*0.25 : s*0.22;
+  const px = d.x !== 0 ? d.y*s*0.18 : 0;
+  const py = d.y !== 0 ? d.x*s*0.18 : 0;
+  return [cx+ox+px, cy+oy+py, cx+ox-px||cx+ox, cy+oy-py||cy+oy];
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+function gameOver() {
+  running = false;
+  clearTimeout(loop);
+  draw();
+  showOverlay('Game Over', `You scored ${score} points`, score);
+}
+
+function updateHUD() {
+  document.getElementById('scoreDisplay').textContent = score;
+  document.getElementById('bestDisplay').textContent  = best;
+  document.getElementById('levelDisplay').textContent = level;
+}
+
+function showOverlay(title, sub, sc) {
+  const ov = document.getElementById('overlay');
+  document.getElementById('overlayTitle').textContent = title;
+  document.getElementById('overlaySub').textContent   = sub;
+  const os = document.getElementById('overlayScore');
+  if (sc !== undefined) { os.style.display='block'; os.textContent = `Score: ${sc}`; }
+  else { os.style.display='none'; }
+  document.getElementById('startBtn').textContent = sc !== undefined ? '↩ Play Again' : '▶ Start Game';
+  ov.classList.remove('hidden');
+}
+
+function hideOverlay() {
+  document.getElementById('overlay').classList.add('hidden');
+}
+
+document.addEventListener('keydown', e => {
+  const map = {
+    ArrowUp:{x:0,y:-1}, ArrowDown:{x:0,y:1},
+    ArrowLeft:{x:-1,y:0}, ArrowRight:{x:1,y:0},
+    w:{x:0,y:-1}, s:{x:0,y:1}, a:{x:-1,y:0}, d:{x:1,y:0}
+  };
+  if (map[e.key]) {
+    e.preventDefault();
+    const nd = map[e.key];
+    if (nd.x !== -dir.x || nd.y !== -dir.y) nextDir = nd;
+  }
+  if (e.key === 'p' || e.key === 'P') {
+    paused = !paused;
+    if (!paused && running) tick();
+  }
+  if ((e.key === 'r' || e.key === 'R') && !running) startGame();
+});
+
+// Swipe support
+let tx = 0, ty = 0;
+canvas.addEventListener('touchstart', e => { tx=e.touches[0].clientX; ty=e.touches[0].clientY; }, {passive:true});
+canvas.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  const dy = e.changedTouches[0].clientY - ty;
+  if (Math.abs(dx) > Math.abs(dy)) { nextDir = dx>0?{x:1,y:0}:{x:-1,y:0}; }
+  else { nextDir = dy>0?{x:0,y:1}:{x:0,y:-1}; }
+}, {passive:true});
+
+init();
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2048 — MiniArcade</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .board-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    #board {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      background: #1a1a1a;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      width: 440px;
+      height: 440px;
+      box-shadow: 0 0 40px rgba(249,115,22,0.2);
+    }
+
+    .tile {
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-weight: 800;
+      font-size: 1.8rem;
+      transition: background 0.1s, transform 0.08s;
+      position: relative;
+      user-select: none;
+    }
+
+    .tile.new-tile {
+      animation: pop-in 0.12s ease both;
+    }
+
+    .tile.merged {
+      animation: merge-pop 0.15s ease both;
+    }
+
+    @keyframes pop-in {
+      from { transform: scale(0); opacity: 0; }
+      to   { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes merge-pop {
+      0%   { transform: scale(1); }
+      50%  { transform: scale(1.12); }
+      100% { transform: scale(1); }
+    }
+
+    /* Tile colors */
+    .t-0    { background:#1e1e2a; }
+    .t-2    { background:#27273a; color:#e2e8f0; font-size:1.8rem; }
+    .t-4    { background:#2d2440; color:#e2e8f0; font-size:1.8rem; }
+    .t-8    { background:#7c2d12; color:#fff; font-size:1.8rem; }
+    .t-16   { background:#9a3412; color:#fff; font-size:1.6rem; }
+    .t-32   { background:#c2410c; color:#fff; font-size:1.6rem; }
+    .t-64   { background:#ea580c; color:#fff; font-size:1.5rem; }
+    .t-128  { background:#d97706; color:#fff; font-size:1.3rem; box-shadow:0 0 14px rgba(217,119,6,0.5); }
+    .t-256  { background:#ca8a04; color:#fff; font-size:1.2rem; box-shadow:0 0 14px rgba(202,138,4,0.5); }
+    .t-512  { background:#a16207; color:#fff; font-size:1.1rem; box-shadow:0 0 18px rgba(161,98,7,0.5); }
+    .t-1024 { background:#854d0e; color:#fff; font-size:0.95rem; box-shadow:0 0 20px rgba(133,77,14,0.6); }
+    .t-2048 { background:linear-gradient(135deg,#facc15,#f97316); color:#fff; font-size:0.9rem; box-shadow:0 0 30px rgba(250,204,21,0.6); animation:shine 2s linear infinite; }
+
+    @keyframes shine {
+      0%,100% { box-shadow:0 0 30px rgba(250,204,21,0.5); }
+      50%      { box-shadow:0 0 50px rgba(249,115,22,0.8); }
+    }
+
+    .score-row {
+      display: flex;
+      gap: 1rem;
+    }
+    .score-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 1.5rem;
+      text-align: center;
+      min-width: 120px;
+    }
+    .score-box .sb-label {
+      font-size: 0.7rem;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+    .score-box .sb-val {
+      font-size: 1.5rem;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+
+    .action-row {
+      display: flex;
+      gap: 0.75rem;
+    }
+  </style>
+</head>
+<body class="game-page">
+
+<nav class="navbar">
+  <a href="../index.html" class="nav-logo">
+    <div class="logo-icon">🕹️</div>
+    Mini<span class="dim">Arcade</span>
+  </a>
+</nav>
+
+<div class="game-header">
+  <div class="game-header-left">
+    <a href="../index.html" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Games
+    </a>
+    <div class="game-title-badge">
+      <h2>🔢 2048</h2>
+      <span class="live-badge">LIVE</span>
+    </div>
+  </div>
+  <div class="game-stats-bar">
+    <div class="stat-box">
+      <span class="label">Score</span>
+      <span class="value" id="hScore">0</span>
+    </div>
+    <div class="stat-box">
+      <span class="label">Best</span>
+      <span class="value" id="hBest">0</span>
+    </div>
+  </div>
+</div>
+
+<div class="game-arena">
+  <div class="board-wrap">
+    <div class="score-row">
+      <div class="score-box">
+        <div class="sb-label">Score</div>
+        <div class="sb-val" id="scoreVal">0</div>
+      </div>
+      <div class="score-box">
+        <div class="sb-label">Best</div>
+        <div class="sb-val" id="bestVal">0</div>
+      </div>
+    </div>
+
+    <div id="board"></div>
+
+    <div class="action-row">
+      <button class="btn btn-ghost" onclick="newGame()">↩ New Game</button>
+      <button class="btn btn-ghost" onclick="undo()">⤺ Undo</button>
+    </div>
+  </div>
+
+  <div class="game-sidebar">
+    <div class="sidebar-panel">
+      <h4>Controls</h4>
+      <ul class="control-list">
+        <li>Slide <span><span class="key-chip">↑↓←→</span></span></li>
+        <li>Also <span><span class="key-chip">WASD</span></span></li>
+        <li>Undo <span><span class="key-chip">Z</span></span></li>
+        <li>New game <span><span class="key-chip">N</span></span></li>
+      </ul>
+    </div>
+    <div class="sidebar-panel">
+      <h4>Goal</h4>
+      <p style="font-size:0.8rem;color:var(--text-secondary);line-height:1.6">Slide tiles on the grid. When two tiles with the same number touch, they merge. Reach <strong style="color:#facc15">2048</strong> to win!</p>
+    </div>
+  </div>
+
+  <!-- overlays -->
+  <div style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(10,10,15,0.85);backdrop-filter:blur(8px)" id="winOv" class="hidden">
+    <div style="text-align:center">
+      <div style="font-size:3rem;margin-bottom:1rem">🎉</div>
+      <div class="overlay-title" style="color:#facc15;margin-bottom:0.5rem">You reached 2048!</div>
+      <div class="overlay-sub" style="margin-bottom:1.5rem">Keep going or start fresh.</div>
+      <div style="display:flex;gap:1rem;justify-content:center">
+        <button class="btn btn-primary" onclick="keepGoing()">Keep Going</button>
+        <button class="btn btn-ghost" onclick="newGame()">New Game</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(10,10,15,0.85);backdrop-filter:blur(8px)" id="loseOv" class="hidden">
+    <div style="text-align:center">
+      <div style="font-size:3rem;margin-bottom:1rem">💀</div>
+      <div class="overlay-title" style="margin-bottom:0.5rem">No moves left!</div>
+      <div class="overlay-score" style="margin-bottom:0.5rem" id="finalScore"></div>
+      <div class="overlay-sub" style="margin-bottom:1.5rem">Better luck next time.</div>
+      <button class="btn btn-primary" onclick="newGame()">↩ Try Again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SIZE = 4;
+let grid, score, best, prev, prevScore, won;
+
+best = parseInt(localStorage.getItem('2048_best')||'0');
+
+function newGame() {
+  grid  = Array.from({length:SIZE}, () => Array(SIZE).fill(0));
+  score = 0;
+  won   = false;
+  prev  = null;
+  prevScore = 0;
+  hideOv('winOv'); hideOv('loseOv');
+  addTile(); addTile();
+  render();
+}
+
+function addTile() {
+  const empties = [];
+  grid.forEach((row,r) => row.forEach((v,c) => { if(!v) empties.push({r,c}); }));
+  if (!empties.length) return;
+  const {r,c} = empties[Math.floor(Math.random()*empties.length)];
+  grid[r][c] = Math.random() < 0.9 ? 2 : 4;
+  return {r,c};
+}
+
+function render(newPos, mergedPos) {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  grid.forEach((row,r) => row.forEach((val,c) => {
+    const el = document.createElement('div');
+    el.className = `tile t-${Math.min(val,2048)}`;
+    el.textContent = val || '';
+    if (newPos && newPos.r===r && newPos.c===c) el.classList.add('new-tile');
+    if (mergedPos && mergedPos.some(p=>p.r===r&&p.c===c)) el.classList.add('merged');
+    board.appendChild(el);
+  }));
+  document.getElementById('scoreVal').textContent = score;
+  document.getElementById('bestVal').textContent  = best;
+  document.getElementById('hScore').textContent   = score;
+  document.getElementById('hBest').textContent    = best;
+}
+
+function slide(row) {
+  const filtered = row.filter(v=>v);
+  const merged   = [];
+  const result   = [];
+  let i = 0;
+  while (i < filtered.length) {
+    if (i+1 < filtered.length && filtered[i] === filtered[i+1]) {
+      const val = filtered[i]*2;
+      result.push(val);
+      merged.push(result.length-1);
+      score += val;
+      if (val > best) { best = val; localStorage.setItem('2048_best', best); }
+      i += 2;
+    } else {
+      result.push(filtered[i]);
+      i++;
+    }
+  }
+  while (result.length < SIZE) result.push(0);
+  return {row:result, merged};
+}
+
+function move(dir) {
+  let changed = false;
+  const mergedPos = [];
+  const snapshot  = grid.map(r=>[...r]);
+
+  let rows = grid.map(r=>[...r]);
+
+  if (dir === 'left') {
+    rows = rows.map((row,r) => {
+      const {row:nr,merged} = slide(row);
+      merged.forEach(c => mergedPos.push({r,c}));
+      if (nr.join()!==row.join()) changed=true;
+      return nr;
+    });
+  } else if (dir === 'right') {
+    rows = rows.map((row,r) => {
+      const {row:nr,merged} = slide([...row].reverse());
+      merged.forEach(c => mergedPos.push({r,c:SIZE-1-c}));
+      const res = nr.reverse();
+      if (res.join()!==row.join()) changed=true;
+      return res;
+    });
+  } else if (dir === 'up') {
+    for (let c=0;c<SIZE;c++) {
+      const col = rows.map(row=>row[c]);
+      const {row:nc,merged} = slide(col);
+      merged.forEach(r => mergedPos.push({r,c}));
+      if (nc.join()!==col.join()) changed=true;
+      nc.forEach((v,r) => rows[r][c]=v);
+    }
+  } else if (dir === 'down') {
+    for (let c=0;c<SIZE;c++) {
+      const col = rows.map(row=>row[c]);
+      const {row:nc,merged} = slide([...col].reverse());
+      merged.forEach(r => mergedPos.push({r:SIZE-1-r,c}));
+      const res = nc.reverse();
+      if (res.join()!==col.join()) changed=true;
+      res.forEach((v,r) => rows[r][c]=v);
+    }
+  }
+
+  if (!changed) return;
+  prev = snapshot; prevScore = score;
+  grid = rows;
+
+  const newPos = addTile();
+  render(newPos, mergedPos);
+
+  if (!won && grid.some(row=>row.some(v=>v===2048))) {
+    won = true; showOv('winOv');
+  } else if (!canMove()) {
+    document.getElementById('finalScore').textContent = `Score: ${score}`;
+    showOv('loseOv');
+  }
+}
+
+function canMove() {
+  for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) {
+    if (!grid[r][c]) return true;
+    if (r+1<SIZE && grid[r][c]===grid[r+1][c]) return true;
+    if (c+1<SIZE && grid[r][c]===grid[r][c+1]) return true;
+  }
+  return false;
+}
+
+function undo() {
+  if (!prev) return;
+  grid = prev.map(r=>[...r]);
+  score = prevScore;
+  prev = null;
+  render();
+}
+
+function keepGoing() { hideOv('winOv'); }
+function showOv(id) { document.getElementById(id).classList.remove('hidden'); }
+function hideOv(id) { document.getElementById(id).classList.add('hidden'); }
+
+document.addEventListener('keydown', e => {
+  const map = {
+    ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down',
+    a:'left', d:'right', w:'up', s:'down',
+    A:'left', D:'right', W:'up', S:'down'
+  };
+  if (map[e.key]) { e.preventDefault(); move(map[e.key]); }
+  if (e.key==='z'||e.key==='Z') undo();
+  if (e.key==='n'||e.key==='N') newGame();
+});
+
+// Touch swipe
+let sx=0,sy=0;
+document.getElementById('board').addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
+document.getElementById('board').addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy;
+  if (Math.abs(dx)>Math.abs(dy)) move(dx>0?'right':'left');
+  else move(dy>0?'down':'up');
+},{passive:true});
+
+newGame();
+</script>
+</body>
+</html>
