@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minesweeper — MiniArcade</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .ms-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+    .ms-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 1.25rem;
+      font-family: var(--font-mono);
+    }
+    .ms-toolbar .t-val {
+      font-size: 1.4rem;
+      font-weight: 800;
+      min-width: 48px;
+      text-align: center;
+    }
+    .ms-toolbar .t-label {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .ms-toolbar .divider {
+      width: 1px;
+      height: 32px;
+      background: var(--border);
+    }
+    #resetBtn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 1.3rem;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #resetBtn:hover { border-color: var(--accent-primary); background: rgba(99,102,241,0.1); }
+
+    #msBoard {
+      display: grid;
+      gap: 3px;
+      background: #1a1808;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 0 40px rgba(250,204,21,0.1);
+      user-select: none;
+    }
+
+    .ms-cell {
+      width: 34px;
+      height: 34px;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-weight: 800;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.12s, transform 0.08s;
+      border: 1px solid transparent;
+    }
+
+    .ms-cell.hidden {
+      background: #2a2a1a;
+      border-color: #3a3a2a;
+    }
+    .ms-cell.hidden:hover { background: #353525; transform: scale(1.05); }
+
+    .ms-cell.flagged {
+      background: #2a2a1a;
+      border-color: rgba(250,204,21,0.4);
+    }
+
+    .ms-cell.revealed {
+      background: #1a1808;
+      border-color: #252510;
+      cursor: default;
+    }
+
+    .ms-cell.mine-hit {
+      background: #7f1d1d;
+      border-color: #ef4444;
+      animation: shake 0.3s ease;
+    }
+
+    @keyframes shake {
+      0%,100%{transform:translateX(0);}25%{transform:translateX(-4px);}75%{transform:translateX(4px);}
+    }
+
+    .n1{color:#60a5fa} .n2{color:#4ade80} .n3{color:#f87171}
+    .n4{color:#818cf8} .n5{color:#f97316} .n6{color:#22d3ee}
+    .n7{color:#f472b6} .n8{color:#94a3b8}
+
+    .diff-selector {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .diff-btn {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      padding: 4px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .diff-btn.active, .diff-btn:hover {
+      border-color: #facc15;
+      color: #facc15;
+      background: rgba(250,204,21,0.08);
+    }
+  </style>
+</head>
+<body class="game-page">
+
+<nav class="navbar">
+  <a href="../index.html" class="nav-logo">
+    <div class="logo-icon">🕹️</div>
+    Mini<span class="dim">Arcade</span>
+  </a>
+</nav>
+
+<div class="game-header">
+  <div class="game-header-left">
+    <a href="../index.html" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Games
+    </a>
+    <div class="game-title-badge">
+      <h2>💣 Minesweeper</h2>
+      <span class="live-badge">LIVE</span>
+    </div>
+  </div>
+  <div class="game-stats-bar">
+    <div class="stat-box"><span class="label">Mines</span><span class="value" id="hMines">0</span></div>
+    <div class="stat-box"><span class="label">Time</span><span class="value" id="hTime">0s</span></div>
+    <div class="stat-box"><span class="label">Best</span><span class="value" id="hBest">--</span></div>
+  </div>
+</div>
+
+<div class="game-arena" style="flex-direction:column">
+  <div class="ms-wrap">
+    <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;justify-content:center">
+      <div class="diff-selector">
+        <button class="diff-btn active" onclick="setDiff('easy',this)">Easy 9×9</button>
+        <button class="diff-btn" onclick="setDiff('med',this)">Medium 16×16</button>
+        <button class="diff-btn" onclick="setDiff('hard',this)">Hard 16×30</button>
+      </div>
+    </div>
+
+    <div class="ms-toolbar">
+      <div>
+        <div class="t-val" id="mineCount" style="color:#facc15">💣 0</div>
+        <div class="t-label">Remaining</div>
+      </div>
+      <div class="divider"></div>
+      <button id="resetBtn" onclick="newGame()" title="New game">🙂</button>
+      <div class="divider"></div>
+      <div>
+        <div class="t-val" id="timer" style="color:#22d3ee">000</div>
+        <div class="t-label">Seconds</div>
+      </div>
+    </div>
+
+    <div id="msBoard"></div>
+  </div>
+</div>
+
+<script>
+const DIFFS = {
+  easy: {rows:9,  cols:9,  mines:10},
+  med:  {rows:16, cols:16, mines:40},
+  hard: {rows:16, cols:30, mines:99},
+};
+
+let ROWS, COLS, MINES;
+let board, revealed, flagged, mineSet, firstClick, gameActive, timerInterval, elapsed, bestTimes;
+
+bestTimes = JSON.parse(localStorage.getItem('ms_best')||'{}');
+let diff = 'easy';
+
+function setDiff(d, btn) {
+  diff = d;
+  document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  newGame();
+}
+
+function newGame() {
+  const cfg = DIFFS[diff];
+  ROWS=cfg.rows; COLS=cfg.cols; MINES=cfg.mines;
+  board     = Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  revealed  = Array.from({length:ROWS},()=>Array(COLS).fill(false));
+  flagged   = Array.from({length:ROWS},()=>Array(COLS).fill(false));
+  mineSet   = new Set();
+  firstClick= true;
+  gameActive= true;
+  elapsed   = 0;
+  clearInterval(timerInterval);
+
+  updateMineCount();
+  updateTimer();
+  updateBest();
+  document.getElementById('resetBtn').textContent='🙂';
+  renderBoard();
+}
+
+function placeMines(safeR, safeC) {
+  const safe = new Set();
+  for (let dr=-1;dr<=1;dr++) for (let dc=-1;dc<=1;dc++) {
+    const nr=safeR+dr, nc=safeC+dc;
+    if (nr>=0&&nr<ROWS&&nc>=0&&nc<COLS) safe.add(nr*COLS+nc);
+  }
+  while (mineSet.size < MINES) {
+    const idx = Math.floor(Math.random()*ROWS*COLS);
+    if (!safe.has(idx)) mineSet.add(idx);
+  }
+  // Compute numbers
+  for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
+    if (mineSet.has(r*COLS+c)) { board[r][c]=-1; continue; }
+    let count=0;
+    for (let dr=-1;dr<=1;dr++) for (let dc=-1;dc<=1;dc++) {
+      const nr=r+dr, nc=c+dc;
+      if (nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&mineSet.has(nr*COLS+nc)) count++;
+    }
+    board[r][c]=count;
+  }
+}
+
+function reveal(r, c) {
+  if (r<0||r>=ROWS||c<0||c>=COLS||revealed[r][c]||flagged[r][c]) return;
+  revealed[r][c]=true;
+  if (board[r][c]===0) {
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++) reveal(r+dr,c+dc);
+  }
+}
+
+function handleClick(r, c) {
+  if (!gameActive||revealed[r][c]||flagged[r][c]) return;
+  if (firstClick) {
+    firstClick=false;
+    placeMines(r,c);
+    timerInterval=setInterval(()=>{elapsed++;updateTimer();},1000);
+  }
+  if (mineSet.has(r*COLS+c)) {
+    explode(r,c);
+    return;
+  }
+  reveal(r,c);
+  renderBoard();
+  if (checkWin()) winGame();
+}
+
+function handleRightClick(e, r, c) {
+  e.preventDefault();
+  if (!gameActive||revealed[r][c]) return;
+  flagged[r][c]=!flagged[r][c];
+  updateMineCount();
+  renderBoard();
+}
+
+function handleChord(r, c) {
+  if (!revealed[r][c]||board[r][c]<=0) return;
+  let flags=0;
+  for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+    const nr=r+dr,nc=c+dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&flagged[nr][nc]) flags++;
+  }
+  if (flags===board[r][c]) {
+    let hit=false;
+    for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+      const nr=r+dr,nc=c+dc;
+      if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!flagged[nr][nc]&&!revealed[nr][nc]){
+        if(mineSet.has(nr*COLS+nc)){hit=true;}
+        else reveal(nr,nc);
+      }
+    }
+    if(hit) explode(r,c);
+    renderBoard();
+    if(checkWin()) winGame();
+  }
+}
+
+function explode(r,c) {
+  gameActive=false;
+  clearInterval(timerInterval);
+  document.getElementById('resetBtn').textContent='😵';
+  // Reveal all mines
+  mineSet.forEach(idx=>{
+    revealed[Math.floor(idx/COLS)][idx%COLS]=true;
+  });
+  renderBoard();
+  // Mark the hit mine specially
+  const cells=document.querySelectorAll('.ms-cell');
+  const idx=r*COLS+c;
+  if(cells[idx]) cells[idx].classList.add('mine-hit');
+}
+
+function checkWin() {
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) {
+    if(!mineSet.has(r*COLS+c)&&!revealed[r][c]) return false;
+  }
+  return true;
+}
+
+function winGame() {
+  gameActive=false;
+  clearInterval(timerInterval);
+  document.getElementById('resetBtn').textContent='😎';
+  const key=diff;
+  if(!bestTimes[key]||elapsed<bestTimes[key]){ bestTimes[key]=elapsed; localStorage.setItem('ms_best',JSON.stringify(bestTimes)); }
+  updateBest();
+  // Auto-flag remaining
+  mineSet.forEach(idx=>{flagged[Math.floor(idx/COLS)][idx%COLS]=true;});
+  updateMineCount();
+  renderBoard();
+}
+
+function renderBoard() {
+  const board_el=document.getElementById('msBoard');
+  board_el.style.gridTemplateColumns=`repeat(${COLS},34px)`;
+  board_el.innerHTML='';
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const cell=document.createElement('div');
+    cell.className='ms-cell';
+    const isMine=mineSet.has(r*COLS+c);
+    if(revealed[r][c]) {
+      cell.classList.add('revealed');
+      if(isMine) { cell.textContent='💣'; }
+      else if(board[r][c]>0) { cell.textContent=board[r][c]; cell.classList.add(`n${board[r][c]}`); }
+    } else if(flagged[r][c]) {
+      cell.classList.add('flagged');
+      cell.textContent='🚩';
+    } else {
+      cell.classList.add('hidden');
+    }
+    cell.addEventListener('click',()=>handleClick(r,c));
+    cell.addEventListener('contextmenu',e=>handleRightClick(e,r,c));
+    cell.addEventListener('dblclick',()=>handleChord(r,c));
+    board_el.appendChild(cell);
+  }
+}
+
+function updateMineCount(){
+  let flags=0;
+  flagged.forEach(row=>row.forEach(f=>{if(f)flags++;}));
+  document.getElementById('mineCount').textContent=`💣 ${MINES-flags}`;
+  document.getElementById('hMines').textContent=MINES-flags;
+}
+
+function updateTimer(){
+  const s=String(elapsed).padStart(3,'0');
+  document.getElementById('timer').textContent=s;
+  document.getElementById('hTime').textContent=elapsed+'s';
+}
+
+function updateBest(){
+  const b=bestTimes[diff];
+  document.getElementById('hBest').textContent=b?b+'s':'--';
+}
+
+newGame();
+</script>
+</body>
+</html>

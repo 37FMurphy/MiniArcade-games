@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Breakout — MiniArcade</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body class="game-page">
+
+<nav class="navbar">
+  <a href="../index.html" class="nav-logo">
+    <div class="logo-icon">🕹️</div>
+    Mini<span class="dim">Arcade</span>
+  </a>
+</nav>
+
+<div class="game-header">
+  <div class="game-header-left">
+    <a href="../index.html" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Games
+    </a>
+    <div class="game-title-badge">
+      <h2>🧱 Breakout</h2>
+      <span class="live-badge">LIVE</span>
+    </div>
+  </div>
+  <div class="game-stats-bar">
+    <div class="stat-box"><span class="label">Score</span><span class="value" id="hScore">0</span></div>
+    <div class="stat-box"><span class="label">Lives</span><span class="value" id="hLives">3</span></div>
+    <div class="stat-box"><span class="label">Level</span><span class="value" id="hLevel">1</span></div>
+  </div>
+</div>
+
+<div class="game-arena">
+  <div class="game-canvas-wrap" style="--shadow-glow:0 0 40px rgba(244,114,182,0.25)">
+    <canvas id="gameCanvas" width="480" height="540"></canvas>
+    <div class="game-overlay" id="overlay">
+      <div class="overlay-title" id="oTitle">🧱 Breakout</div>
+      <div class="overlay-sub" id="oSub">Destroy all bricks. Don't drop the ball.</div>
+      <div class="overlay-score" id="oScore" style="display:none"></div>
+      <button class="btn btn-primary" id="startBtn" onclick="startGame()">▶ Start Game</button>
+    </div>
+  </div>
+
+  <div class="game-sidebar">
+    <div class="sidebar-panel">
+      <h4>Controls</h4>
+      <ul class="control-list">
+        <li>Move  <span><span class="key-chip">←→</span></span></li>
+        <li>Mouse <span><span class="key-chip">Move</span></span></li>
+        <li>Launch<span><span class="key-chip">Space</span></span></li>
+        <li>Pause <span><span class="key-chip">P</span></span></li>
+      </ul>
+    </div>
+    <div class="sidebar-panel">
+      <h4>Power-ups</h4>
+      <ul class="control-list">
+        <li><span style="color:#22d3ee">●</span> Wide paddle</li>
+        <li><span style="color:#facc15">●</span> Multi-ball</li>
+        <li><span style="color:#f472b6">●</span> Laser paddle</li>
+      </ul>
+    </div>
+    <div class="sidebar-panel">
+      <h4>Scoring</h4>
+      <ul class="control-list">
+        <li>Normal brick<span style="color:var(--accent-green)">+10</span></li>
+        <li>Hard brick  <span style="color:var(--accent-orange)">+25</span></li>
+        <li>Per level   <span style="color:var(--accent-primary)">+bonus</span></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// Paddle
+const PAD_H = 12, PAD_W_BASE = 100;
+let pad, ball, bricks, score, lives, level, running, paused, launched, raf;
+
+const ROWS_B = 6, COLS_B = 10;
+const BW = 40, BH = 16, BPAD = 4;
+const BOFF_X = (W - (COLS_B*(BW+BPAD)-BPAD))/2;
+const BOFF_Y = 60;
+
+const ROW_COLORS = [
+  ['#f472b6','#ec4899'],['#f97316','#ea580c'],
+  ['#facc15','#ca8a04'],['#10b981','#059669'],
+  ['#22d3ee','#0891b2'],['#6366f1','#4f46e5']
+];
+
+function initLevel() {
+  pad = { x: W/2-PAD_W_BASE/2, y: H-40, w: PAD_W_BASE, h: PAD_H };
+  ball = [makeBall()];
+  launched = false;
+
+  bricks = [];
+  for (let r=0;r<ROWS_B;r++) for (let c=0;c<COLS_B;c++) {
+    const hp = r < 2 ? 2 : 1;
+    bricks.push({
+      x: BOFF_X + c*(BW+BPAD),
+      y: BOFF_Y + r*(BH+BPAD),
+      w: BW, h: BH, hp, maxHp: hp,
+      color: ROW_COLORS[r][0],
+      color2: ROW_COLORS[r][1]
+    });
+  }
+}
+
+function makeBall() {
+  return { x: W/2, y: H-60, vx: (Math.random()>0.5?1:-1)*4, vy: -5, r: 7 };
+}
+
+function init() {
+  score=0; lives=3; level=1;
+  initLevel();
+  updateHUD();
+}
+
+function startGame() {
+  document.getElementById('overlay').classList.add('hidden');
+  init();
+  running=true;
+  loop();
+}
+
+function loop() {
+  if (!running) return;
+  if (!paused) { update(); draw(); }
+  raf = requestAnimationFrame(loop);
+}
+
+function update() {
+  // Stick ball to paddle if not launched
+  if (!launched) {
+    ball.forEach(b => { b.x=pad.x+pad.w/2; b.y=pad.y-b.r-1; });
+    return;
+  }
+
+  ball.forEach((b,bi) => {
+    b.x += b.vx; b.y += b.vy;
+
+    // Walls
+    if (b.x - b.r < 0)   { b.x = b.r;   b.vx *= -1; }
+    if (b.x + b.r > W)   { b.x = W-b.r; b.vx *= -1; }
+    if (b.y - b.r < 0)   { b.y = b.r;   b.vy *= -1; }
+
+    // Paddle
+    if (b.y+b.r >= pad.y && b.y+b.r <= pad.y+pad.h && b.x>=pad.x && b.x<=pad.x+pad.w) {
+      b.y = pad.y - b.r;
+      b.vy = -Math.abs(b.vy);
+      const hit = (b.x - (pad.x+pad.w/2)) / (pad.w/2);
+      b.vx = hit * 6;
+      clampSpeed(b);
+    }
+
+    // Lost ball
+    if (b.y - b.r > H) { ball.splice(bi,1); }
+
+    // Bricks
+    bricks.forEach((br,idx) => {
+      if (!br || b.x+b.r<br.x||b.x-b.r>br.x+br.w||b.y+b.r<br.y||b.y-b.r>br.y+br.h) return;
+      // Figure out bounce axis
+      const fromLeft  = Math.abs(b.x - (br.x+br.w));
+      const fromRight = Math.abs(b.x - br.x);
+      const fromTop   = Math.abs(b.y - (br.y+br.h));
+      const fromBot   = Math.abs(b.y - br.y);
+      const minD = Math.min(fromLeft,fromRight,fromTop,fromBot);
+      if (minD===fromTop||minD===fromBot) b.vy*=-1;
+      else b.vx*=-1;
+      br.hp--;
+      score += br.maxHp>1?25:10;
+      if (br.hp<=0) bricks.splice(idx,1);
+      updateHUD();
+    });
+  });
+
+  if (ball.length===0) {
+    lives--;
+    updateHUD();
+    if (lives<=0) { gameOver(false); return; }
+    ball=[makeBall()];
+    launched=false;
+  }
+
+  if (bricks.length===0) { levelUp(); }
+}
+
+function clampSpeed(b) {
+  const spd = Math.sqrt(b.vx*b.vx+b.vy*b.vy);
+  const max = 8;
+  if (spd > max) { b.vx=b.vx/spd*max; b.vy=b.vy/spd*max; }
+}
+
+function levelUp() {
+  level++;
+  score += 200*level;
+  initLevel();
+  launched=false;
+  updateHUD();
+}
+
+function draw() {
+  ctx.fillStyle='#1f0d18';
+  ctx.fillRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle='rgba(244,114,182,0.04)';
+  ctx.lineWidth=1;
+  for(let x=0;x<W;x+=30){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // Bricks
+  bricks.forEach(br => {
+    const frac = br.hp/br.maxHp;
+    ctx.fillStyle = frac<1 ? br.color2 : br.color;
+    ctx.shadowColor = br.color;
+    ctx.shadowBlur  = 6;
+    roundRect(ctx,br.x,br.y,br.w,br.h,4);
+    ctx.fill();
+    ctx.shadowBlur=0;
+    // Highlight
+    ctx.fillStyle='rgba(255,255,255,0.15)';
+    ctx.fillRect(br.x+2,br.y+2,br.w-4,3);
+    if (br.hp<br.maxHp) {
+      ctx.strokeStyle='rgba(255,255,255,0.3)';
+      ctx.lineWidth=1;
+      ctx.setLineDash([4,4]);
+      roundRect(ctx,br.x,br.y,br.w,br.h,4);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  });
+
+  // Paddle
+  const grad = ctx.createLinearGradient(pad.x,pad.y,pad.x,pad.y+pad.h);
+  grad.addColorStop(0,'#f9a8d4');
+  grad.addColorStop(1,'#db2777');
+  ctx.fillStyle=grad;
+  ctx.shadowColor='#f472b6';
+  ctx.shadowBlur=12;
+  roundRect(ctx,pad.x,pad.y,pad.w,pad.h,6);
+  ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Balls
+  ball.forEach(b => {
+    ctx.shadowColor='#f9a8d4';
+    ctx.shadowBlur=16;
+    ctx.fillStyle='#fff';
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur=0;
+    // Trail
+    ctx.fillStyle='rgba(249,168,212,0.12)';
+    for(let i=1;i<=4;i++){
+      ctx.beginPath();
+      ctx.arc(b.x-b.vx*i*0.5,b.y-b.vy*i*0.5,b.r*(1-i*0.15),0,Math.PI*2);
+      ctx.fill();
+    }
+  });
+
+  // HUD overlays
+  if (!launched) {
+    ctx.fillStyle='rgba(244,114,182,0.5)';
+    ctx.font='14px JetBrains Mono';
+    ctx.textAlign='center';
+    ctx.fillText('SPACE or CLICK to launch', W/2, H-10);
+  }
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+function gameOver(win) {
+  running=false;
+  cancelAnimationFrame(raf);
+  const ov=document.getElementById('overlay');
+  document.getElementById('oTitle').textContent = win?'You Win! 🎉':'Game Over 💀';
+  document.getElementById('oSub').textContent   = win?`Level ${level} cleared!`:`All lives lost.`;
+  const os=document.getElementById('oScore');
+  os.style.display='block'; os.textContent=`Score: ${score}`;
+  document.getElementById('startBtn').textContent='↩ Play Again';
+  ov.classList.remove('hidden');
+}
+
+function updateHUD(){
+  document.getElementById('hScore').textContent=score;
+  document.getElementById('hLives').textContent=lives;
+  document.getElementById('hLevel').textContent=level;
+}
+
+// Controls
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft'||e.key==='a')  pad.x=Math.max(0,pad.x-20);
+  if(e.key==='ArrowRight'||e.key==='d') pad.x=Math.min(W-pad.w,pad.x+20);
+  if(e.key===' ') { e.preventDefault(); launched=true; }
+  if(e.key==='p'||e.key==='P') paused=!paused;
+});
+
+canvas.addEventListener('mousemove', e=>{
+  const rect=canvas.getBoundingClientRect();
+  pad.x=Math.max(0,Math.min(W-pad.w,(e.clientX-rect.left)-pad.w/2));
+});
+
+canvas.addEventListener('click', ()=>{ launched=true; });
+canvas.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  const rect=canvas.getBoundingClientRect();
+  pad.x=Math.max(0,Math.min(W-pad.w,(e.touches[0].clientX-rect.left)-pad.w/2));
+},{passive:false});
+canvas.addEventListener('touchstart', ()=>{ launched=true; },{passive:true});
+
+init();
+draw();
+</script>
+</body>
+</html>

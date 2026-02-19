@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiniArcade — Play Classic Games in Your Browser</title>
+  <meta name="description" content="A collection of hand-crafted arcade games. No downloads, no ads. Just pure fun." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* === index-specific === */
+    .tag-filter {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 2rem;
+    }
+    .tag-btn {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 5px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tag-btn.active, .tag-btn:hover {
+      background: rgba(99,102,241,0.12);
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+    }
+    .terminal-bar {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 3rem;
+      overflow: hidden;
+    }
+    .terminal-bar .dots { display: flex; gap: 6px; flex-shrink: 0; }
+    .terminal-bar .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .dot.red   { background: #ff5f57; }
+    .dot.yellow{ background: #febc2e; }
+    .dot.green { background: #28c840; }
+    .terminal-text { color: var(--text-secondary); white-space: nowrap; }
+    .terminal-text .prompt { color: var(--accent-primary); }
+    .terminal-text .cmd    { color: var(--text-primary); }
+    .terminal-text .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 14px;
+      background: var(--accent-secondary);
+      margin-left: 2px;
+      vertical-align: middle;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* Horizontal scroll marquee for "Now Playing" */
+    .marquee-wrap {
+      overflow: hidden;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+      padding: 10px 0;
+      margin-bottom: 5rem;
+    }
+    .marquee-inner {
+      display: flex;
+      gap: 2rem;
+      animation: marquee 30s linear infinite;
+      width: max-content;
+    }
+    @keyframes marquee {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    .marquee-item {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    .marquee-item .mi-dot {
+      width: 6px; height: 6px; background: var(--accent-primary); border-radius: 50%;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== NAV ===== -->
+<nav class="navbar">
+  <a href="index.html" class="nav-logo">
+    <div class="logo-icon">🕹️</div>
+    Mini<span class="dim">Arcade</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#games">Games</a></li>
+    <li><a href="#about">About</a></li>
+  </ul>
+  <a class="nav-badge" href="#games">Play Now →</a>
+</nav>
+
+<!-- ===== HERO ===== -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow g1"></div>
+  <div class="hero-glow g2"></div>
+  <div class="hero-glow g3"></div>
+
+  <div class="hero-content">
+    <div class="hero-eyebrow fade-in-up">MINIARCADE v2.0 — ONLINE</div>
+
+    <h1 class="fade-in-up delay-1">
+      Games worth<br>
+      <span class="gradient-text">one more round.</span>
+    </h1>
+
+    <p class="hero-sub fade-in-up delay-2">
+      Hand-crafted arcade classics, reimagined for the modern web.
+      No downloads. No ads. Just you and the high score.
+    </p>
+
+    <div class="hero-cta fade-in-up delay-3">
+      <a href="#games" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+        Browse Games
+      </a>
+      <a href="#about" class="btn btn-ghost">How it works</a>
+    </div>
+
+    <div class="hero-stats fade-in-up delay-4">
+      <div class="stat-item">
+        <div class="stat-number">7<span>+</span></div>
+        <div class="stat-label">Games</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number">0<span>$</span></div>
+        <div class="stat-label">Cost</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number">∞</div>
+        <div class="stat-label">Fun</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== MARQUEE ===== -->
+<div class="marquee-wrap">
+  <div class="marquee-inner" id="marqueeInner">
+    <!-- items duplicated via JS for seamless loop -->
+  </div>
+</div>
+
+<!-- ===== GAMES ===== -->
+<main id="games" class="section">
+  <div class="section-header fade-in-up">
+    <div class="section-label">Games</div>
+    <h2 class="section-title">Pick your poison.</h2>
+    <p class="section-desc">Seven arcade games, each with their own twist. All playable in seconds.</p>
+  </div>
+
+  <!-- Terminal bar -->
+  <div class="terminal-bar fade-in-up delay-1">
+    <div class="dots">
+      <div class="dot red"></div>
+      <div class="dot yellow"></div>
+      <div class="dot green"></div>
+    </div>
+    <div class="terminal-text">
+      <span class="prompt">~/miniarcade</span> <span class="cmd">$ ls games/</span>
+      <span class="cursor"></span>
+    </div>
+  </div>
+
+  <!-- Tag filter -->
+  <div class="tag-filter fade-in-up delay-2">
+    <button class="tag-btn active" onclick="filterGames('all',this)">All</button>
+    <button class="tag-btn" onclick="filterGames('classic',this)">Classic</button>
+    <button class="tag-btn" onclick="filterGames('puzzle',this)">Puzzle</button>
+    <button class="tag-btn" onclick="filterGames('action',this)">Action</button>
+    <button class="tag-btn" onclick="filterGames('strategy',this)">Strategy</button>
+  </div>
+
+  <!-- Cards grid -->
+  <div class="games-grid" id="gamesGrid">
+
+    <!-- SNAKE -->
+    <a href="games/snake.html" class="game-card fade-in-up delay-1"
+       data-tags="classic action"
+       style="--card-accent-a:#10b981;--card-accent-b:#34d399;--preview-bg:linear-gradient(135deg,#0d1f17,#0f2a1c)">
+      <div class="game-card-preview">
+        <div class="preview-icon">🐍</div>
+      </div>
+      <div class="game-card-body">
+        <div class="game-card-meta">
+          <span class="game-tag" style="background:rgba(16,185,129,0.12);color:#10b981">Classic</span>
+          <div class="game-difficulty" title="Medium difficulty">
+            <div class="diff-pip active"></div>
+            <div class="diff-pip active"></div>
+            <div class="diff-pip"></div>
+          </div>
+        </div>
+        <div class="game-card-title">Snake</div>
+        <div class="game-card-desc">Eat, grow, and don't bite yourself. The original endless arcade loop — now with a neon trail.</div>
+        <div class="game-card-footer">
+          <span class="game-card-play" style="color:#10b981">
+            Play now
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </span>
+          <div class="game-card-keys">
+            <span class="key-chip">↑↓←→</span>
+          </div>
+        </div>
+      </div>
+    </a>
+
+    <!-- 2048 -->
+    <a href="games/2048.html" class="game-card fade-in-up delay-2"
+       data-tags="puzzle strategy"
+       style="--card-accent-a:#f97316;--card-accent-b:#fb923c;--preview-bg:linear-gradient(135deg,#1f1208,#2a1a08)">
+      <div class="game-card-preview">
+        <div class="preview-icon">🔢</div>
+      </div>
+      <div class="game-card-body">
+        <div class="game-card-meta">
+          <span class="game-tag" style="background:rgba(249,115,22,0.12);color:#f97316">Puzzle</span>
+          <div class="game-difficulty" title="Hard difficulty">
+            <div class="diff-pip active"></div>
+            <div class="diff-pip active"></div>
+            <div class="diff-pip active"></div>
+          </div>
+        </div>
+        <div class="game-card-title">2048</div>
+        <div class="game-card-desc">Slide tiles, merge numbers, chase the elusive 2048. Deceptively simple, brutally addictive.</div>
+        <div class="game-card-footer">
+          <span class="game-card-play" style="color:#f97316">
+            Play now
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </span>
+          <div class="game-card-keys">
+            <span class="key-chip">WASD</span>
+            <span class="key-chip">↑↓←→</span>
+          </div>
+        </div>
+      </div>
+    </a>
+
+    <!-- TETRIS -->
+    <a href="games/tetris.html" class="game-card fade-in-up delay-3"
+       data-tags="classic action"
+       style="--card-accent-a:#6366f1;--card-accent-b:#818cf8;--preview-bg:linear-gradient(135deg,#0f0e1f,#14122b)">
+      <div class="game-card-preview">
+        <div class="preview-icon">🟦</div>
+      </div>
+      <div class="game-card-body">
+        <div class="game-card-meta">
+          <span class="game-tag" style="background:rgba(99,102,241,0.12);color:#6366f1">Classic</span>
+          <div class="game-difficulty" title="Medium difficulty">
+            <div class="diff-pip active"></div>
+            <div class="diff-pip active"></div>
+            <div class="diff-pip"></div>
+          </div>
+        </div>
+        <div class="game-card-title">Tetris</div>
+        <div class="game-card-desc">Clear lines before the stack reaches the top. Piece by piece, row by row — forever.</div>
+        <div class="game-card-footer">
+          <span class="game-card-play" style="color:#6366f1">
+            Play now
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </span>
+          <div class="game-card-keys">
+            <span class="key-chip">←→</span>
+            <span class="key-chip">↑ Rot</span>
+            <span class="key-chip">↓ Drop</span>
+          </div>
+        </div>
+      </div>
+    </a>
+
+    <!-- BREAKOUT -->
+    <a href="games/breakout.html" class="game-card fade-in-up delay-1"
+       data-tags="classic action"
+       style="--card-accent-a:#f472b6;--card-accent-b:#fb7185;--preview-bg:linear-gradient(135deg,#1f0d18,#280f1e)">
+      <div class="game-card-preview">
+        <div class="preview-icon">🧱</div>
+      </div>
+      <div class="game-card-body">
+        <div class="game-card-meta">
+          <span class="game-tag" style="background:rgba(244,114,182,0.12);color:#f472b6">Action</span>
+          <div class="game-difficulty" title="Easy difficulty">
+            <div class="diff-pip active"></div>
+            <div class="diff-pip"></div>
+            <div class="diff-pip"></div>
+          </div>
+        </div>
+        <div class="game-card-title">Breakout</div>
+        <div class="game-card-desc">Smash every brick with a ball you can't let drop. A relentless rhythm of angles and reflexes.</div>
+        <div class="game-card-footer">
+          <span class="game-card-play" style="color:#f472b6">
+            Play now
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </span>
+          <div class="game-card-keys">
+            <span class="key-chip">←→ / Mouse</span>
+          </div>
+        </div>
+      </div>
+    </a>
+
+    <!-- MINESWEEPER -->
+    <a href="games/minesweeper.html" class="game-card fade-in-up delay-2"
+       data-tags="puzzle strategy"
+       style="--card-accent-a:#facc15;--card-accent-b:#fde047;--preview-bg:linear-gradient(135deg,#1a1808,#221e08)">
+      <div class="game-card-preview">
+        <div class="preview-icon">💣</div>
+      </div>
+      <div class="game-card-body">
+        <div class="game-card-meta">
+          <span class="game-tag" style="background:rgba(250,204,21,0.12);color:#facc15">Strategy</span>
+          <div class="game-difficulty" title="Hard difficulty">
+            <div class="diff-pip active"></div>
+            <div class="diff-pip active"></div>
+            <div class="diff-pip active"></div>
+          </div>
+        </div>
+        <div class="game-card-title">Minesweeper</div>
+        <div class="game-card-desc">Every click is a calculated risk. Uncover the grid without detonating a single mine.</div>
+        <div class="game-card-footer">
+          <span class="game-card-play" style="color:#facc15">
+            Play now
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </span>
+          <div class="game-card-keys">
+            <span class="key-chip">Click</span>
+            <span class="key-chip">RClick Flag</span>
+          </div>
+        </div>
+      </div>
+    </a>
+
+    <!-- MEMORY MATCH -->
+    <a href="games/memory.html" class="game-card fade-in-up delay-3"
+       data-tags="puzzle"
+       style="--card-accent-a:#22d3ee;--card-accent-b:#67e8f9;--preview-bg:linear-gradient(135deg,#081a1f,#0b222a)">
+      <div class="game-card-preview">
+        <div class="preview-icon">🃏</div>
+      </div>
+      <div class="game-card-body">
+        <div class="game-card-meta">
+          <span class="game-tag" style="background:rgba(34,211,238,0.12);color:#22d3ee">Puzzle</span>
+          <div class="game-difficulty" title="Easy difficulty">
+            <div class="diff-pip active"></div>
+            <div class="diff-pip"></div>
+            <div class="diff-pip"></div>
+          </div>
+        </div>
+        <div class="game-card-title">Memory Match</div>
+        <div class="game-card-desc">Flip cards, find pairs, beat the clock. A sharp mind beats luck every time.</div>
+        <div class="game-card-footer">
+          <span class="game-card-play" style="color:#22d3ee">
+            Play now
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </span>
+          <div class="game-card-keys">
+            <span class="key-chip">Click</span>
+          </div>
+        </div>
+      </div>
+    </a>
+
+    <!-- FLAPPY -->
+    <a href="games/flappy.html" class="game-card fade-in-up delay-1"
+       data-tags="action"
+       style="--card-accent-a:#a78bfa;--card-accent-b:#c4b5fd;--preview-bg:linear-gradient(135deg,#120d1f,#18102b)">
+      <div class="game-card-preview">
+        <div class="preview-icon">🐦</div>
+      </div>
+      <div class="game-card-body">
+        <div class="game-card-meta">
+          <span class="game-tag" style="background:rgba(167,139,250,0.12);color:#a78bfa">Action</span>
+          <div class="game-difficulty" title="Hard difficulty">
+            <div class="diff-pip active"></div>
+            <div class="diff-pip active"></div>
+            <div class="diff-pip active"></div>
+          </div>
+        </div>
+        <div class="game-card-title">Flappy Bird</div>
+        <div class="game-card-desc">One tap. One chance. Thread the gap between pipes and prove you have what it takes.</div>
+        <div class="game-card-footer">
+          <span class="game-card-play" style="color:#a78bfa">
+            Play now
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </span>
+          <div class="game-card-keys">
+            <span class="key-chip">Space / Tap</span>
+          </div>
+        </div>
+      </div>
+    </a>
+
+  </div>
+</main>
+
+<!-- ===== ABOUT ===== -->
+<section id="about" style="border-top:1px solid var(--border);">
+  <div class="section" style="display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:center;">
+    <div class="fade-in-up">
+      <div class="section-label">About</div>
+      <h2 class="section-title" style="margin-bottom:1rem;">Built by a developer,<br>for everyone.</h2>
+      <p style="color:var(--text-secondary);line-height:1.8;margin-bottom:1.25rem;">
+        MiniArcade is a passion project — every game is written from scratch in vanilla
+        JavaScript and HTML5 Canvas. No frameworks, no game engines, no bloat.
+        Just clean, readable code and a good time.
+      </p>
+      <p style="color:var(--text-secondary);line-height:1.8;">
+        Each game saves your high score locally so you can always chase a personal best.
+        Works on desktop and mobile. Open the DevTools — the code is meant to be read.
+      </p>
+    </div>
+    <div class="fade-in-up delay-2" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:2rem;font-family:var(--font-mono);font-size:0.82rem;line-height:2;">
+      <div style="color:var(--text-muted)">// stack.json</div>
+      <div><span style="color:var(--accent-secondary)">"lang"</span>: <span style="color:var(--accent-green)">"Vanilla JS + HTML5"</span>,</div>
+      <div><span style="color:var(--accent-secondary)">"canvas"</span>: <span style="color:var(--accent-green)">"HTML5 Canvas API"</span>,</div>
+      <div><span style="color:var(--accent-secondary)">"storage"</span>: <span style="color:var(--accent-green)">"localStorage"</span>,</div>
+      <div><span style="color:var(--accent-secondary)">"deps"</span>: <span style="color:var(--accent-orange)">[]</span>,</div>
+      <div><span style="color:var(--accent-secondary)">"bundler"</span>: <span style="color:var(--accent-green)">"none — just open it"</span>,</div>
+      <div><span style="color:var(--accent-secondary)">"games"</span>: <span style="color:var(--accent-orange)">7</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="site-footer">
+  <span style="color:var(--text-muted)">// </span>
+  MiniArcade &nbsp;·&nbsp; Built with ♥ and zero dependencies
+  &nbsp;·&nbsp; <a href="#games">↑ Back to games</a>
+</footer>
+
+<script>
+  /* ---- Marquee items ---- */
+  const items = ['Snake','2048','Tetris','Breakout','Minesweeper','Memory Match','Flappy Bird'];
+  const mi = document.getElementById('marqueeInner');
+  [...items,...items,...items,...items].forEach(name => {
+    const el = document.createElement('div');
+    el.className = 'marquee-item';
+    el.innerHTML = `<span class="mi-dot"></span>${name}`;
+    mi.appendChild(el);
+  });
+
+  /* ---- Tag filter ---- */
+  function filterGames(tag, btn) {
+    document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.game-card').forEach(card => {
+      const tags = card.dataset.tags || '';
+      card.style.display = (tag === 'all' || tags.includes(tag)) ? '' : 'none';
+    });
+  }
+
+  /* ---- Intersection Observer fade-ins ---- */
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.style.animationPlayState = 'running';
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.fade-in-up').forEach(el => {
+    el.style.animationPlayState = 'paused';
+    observer.observe(el);
+  });
+</script>
+</body>
+</html>
